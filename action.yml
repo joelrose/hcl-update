@@ -1,0 +1,98 @@
+name: "hcl-update"
+description: "Update a HCL Variable in another repository "
+inputs:
+  gh-token:
+    description: "An Access Token that has rights to read and write to the specificed repository."
+    required: true
+  variable:
+    description: "The variable that shall be overidden."
+    required: true
+  value:
+    description: "The new value that will be assigned to the variable"
+    required: true
+  repository:
+    description: "The repository that contains the HCL variable."
+    required: true
+  file-path:
+    description: "The path to the file where the variable is stored."
+    required: true
+  git-commit-message:
+    description: ""
+    required: true
+  git-branch-name:
+    description: ""
+    required: true
+  git-user-name:
+    description: ""
+    required: false
+    default: "machine-user"
+  git-email:
+    description: ""
+    required: false
+runs:
+  using: "composite"
+  steps:
+    - name: Install hcledit
+      shell: bash
+      run: |
+        # Fetch hcledit binary
+        sudo wget https://github.com/minamijoyo/hcledit/releases/download/v0.2.6/hcledit_0.2.6_linux_amd64.tar.gz \
+          -O hcledit.tar.gz \
+          -q
+
+        # Validate checksum
+        SUM=c11b73643202936e835dfcb15b7d72211cbaed12b3740cab7a377156ebb36816
+        if [[ "$SUM" != "$(sha256sum hcledit.tar.gz | awk '{ print $1 }')" ]]
+        then
+          echo "hcledit checksum does not match"
+          exit 1;
+        fi
+
+        tar -xf hcledit.tar.gz
+        mv hcledit /usr/local/bin/hcledit
+
+        sudo chmod +x /usr/local/bin/hcledit
+
+    - name: Clone repository
+      shell: bash
+      run: |
+        git clone https://${{inputs.gh-token}}@${{inputs.repository}}.git repository
+
+    - name: Update variable
+      shell: bash
+      run: |
+        hcledit attribute set -f repository/${{inputs.file-path}} -u ${{inputs.variable}} '"${{inputs.value}}"'
+
+    - name: Set git user name
+      if: "${{ inputs.git-user-name != '' }}"
+      shell: bash
+      run: git config --global user.name ${{inputs.git-user-name}}
+
+    - name: Set git email
+      if: "${{ inputs.git-email != '' }}"
+      shell: bash
+      run: git config --global user.name ${{inputs.git-email}}
+
+    - name: Commit & create pull request
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.gh-token }}
+      run: |
+        # Checkout branch & commit
+        cd repository
+        git add -A
+        git checkout -b ${{inputs.git-branch-name}}
+        git commit -m "${{inputs.git-commit-message}}" 
+        git push -u origin ${{inputs.git-branch-name}}
+
+        # Prepare 
+        cat << EOF > body.md
+        This deployment is automatically generated from:
+        https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}
+        Build URL:
+        https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+        EOF
+
+        # Create the pull request
+        gh pr create -f -F body.md
+
