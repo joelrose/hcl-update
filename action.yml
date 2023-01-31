@@ -71,7 +71,7 @@ runs:
     - name: Set git email
       if: "${{ inputs.git-email != '' }}"
       shell: bash
-      run: git config --global user.name ${{inputs.git-email}}
+      run: git config --global user.email ${{inputs.git-email}}
 
     - name: Commit & create pull request
       shell: bash
