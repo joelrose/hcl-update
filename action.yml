@@ -35,13 +35,19 @@ runs:
     - name: Install hcledit
       shell: bash
       run: |
-        # Fetch hcledit binary
-        sudo wget https://github.com/minamijoyo/hcledit/releases/download/v0.2.6/hcledit_0.2.6_linux_amd64.tar.gz \
+        # Fetch the hcledit binary matching the runner architecture
+        VERSION=0.2.18
+        case "$(uname -m)" in
+          x86_64) ARCH=amd64; SUM=5974db4486a7e7ecbcbce8b96cb77051419575858d0fc97d73af536b18baabe7 ;;
+          aarch64) ARCH=arm64; SUM=e3a3773836d911170ef69d0d3ff8a3be02a37aed2eeece82b68e13444811907d ;;
+          *) echo "unsupported architecture: $(uname -m)"; exit 1 ;;
+        esac
+
+        wget "https://github.com/minamijoyo/hcledit/releases/download/v${VERSION}/hcledit_${VERSION}_linux_${ARCH}.tar.gz" \
           -O hcledit.tar.gz \
           -q
 
         # Validate checksum
-        SUM=c11b73643202936e835dfcb15b7d72211cbaed12b3740cab7a377156ebb36816
         if [[ "$SUM" != "$(sha256sum hcledit.tar.gz | awk '{ print $1 }')" ]]
         then
           echo "hcledit checksum does not match"
@@ -49,8 +55,7 @@ runs:
         fi
 
         tar -xf hcledit.tar.gz
-        mv hcledit /usr/local/bin/hcledit
-
+        sudo mv hcledit /usr/local/bin/hcledit
         sudo chmod +x /usr/local/bin/hcledit
 
     - name: Clone repository
